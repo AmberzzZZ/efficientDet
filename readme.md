@@ -11,3 +11,20 @@
     
 
 ### efficientDet
+    tf官方仓库: https://github.com/google/automl/tree/master/efficientdet
+    det_model_fn.py: 一些training details
+    efficientdet_arch.py: 模型定义
+
+    learning rate: Learning rate is proportional to the batch size, make sense的，因为batch size越大越接近真实分布
+
+    loss: cls_loss->focal_loss, box_regression_loss->huber_loss, box_iou_loss, reg_l2_loss
+
+    features for FPN: level3-7，也就是8x-128x下采样，但是efficientNet-b0的output stride只有32，
+    原代码中针对不存在对应尺度的feature：Adds a coarser level by downsampling the last feature map, 也可能是要上采样，
+    源代码中下采样到对应尺度用pooling，上采样用nearest neighbor
+
+    biFPN: 所有input_node统一1x1conv-bn调整通道数，pooling／resize调整尺寸(resample_feature_map)，然后weighted add
+    
+
+
+
