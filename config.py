@@ -1,3 +1,6 @@
+from backbone import swish
+
+
 def default_detection_configs():
     config = {}
 
@@ -21,7 +24,8 @@ def default_detection_configs():
     config['use_native_resize_op'] = False
     config['pooling_type'] = None
 
-    config['activation_type'] = 'swish'
+    config['activation_type'] = swish
+    config['survival_prob'] = None
 
     # classification loss (focal_loss)
     config['alpha'] = 0.25

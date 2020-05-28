@@ -24,7 +24,16 @@
     源代码中下采样到对应尺度用pooling，上采样用nearest neighbor
 
     biFPN: 所有input_node统一1x1conv-bn调整通道数，pooling／resize调整尺寸(resample_feature_map)，然后weighted add
-    
+
+    fuse_features: fusion来自不同节点的feature的时候，如果求加权和会定义一个list of tensor，里面的tensor都是标量，
+    keras的层运算默认第一维是batch dim，只能在2d及以上的tensor上运行，但是tfbackend的softmax、sum等操作可以作用于标量
+    stack&unstack: 常量数组和一维向量之间的转换
+
+    cls&box head: 不同尺度的特征图复用，几个conv-bn-swish+id的block，然后加conv head
+
+    Lambda wrapper: keras骚操作
+
+
 
 
 
