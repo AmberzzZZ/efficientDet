@@ -1,5 +1,5 @@
 from config import default_detection_configs
-from backbone import EfficientNet, Conv_BN, swish
+from backbone import EfficientNet, Conv_BN
 from keras.layers import Input, Conv2D, MaxPooling2D, Lambda, Softmax, ReLU, add, SeparableConv2D, BatchNormalization, Activation
 from keras.models import Model
 import tensorflow as tf
@@ -22,9 +22,9 @@ def EfficientDet(input_tensor=None, input_shape=(512,512,3)):
     x = build_feature_network(x, config)        # [P3", P7"]
 
     # heads
-    class_outputs, box_outputs = build_class_and_box_outputs(x, config)
+    class_outputs, box_outputs = build_class_and_box_outputs(x, config)    # [3: 8xhead3, 5:128xhead5]
 
-    # list(class_outputs.values())+list(box_outputs.values())
+    # model
     model = Model(inpt, list(class_outputs.values())+list(box_outputs.values()))
 
     return model
@@ -65,12 +65,12 @@ def build_class_and_box_outputs(x, config):
                                          act_type=config['activation_type'],
                                          repeats=config['box_class_repeats'],
                                          survival_prob=config['survival_prob'])
-    #     box_outputs[level] = box_net(x[level-config['min_level']],
-    #                                  n_anchors=num_anchors,
-    #                                  n_filters=config['fpn_num_filters'],
-    #                                  act_type=config['activation_type'],
-    #                                  repeats=config['box_class_repeats'],
-    #                                  survival_prob=config['survival_prob'])
+        box_outputs[level] = box_net(x[level-config['min_level']],
+                                     n_anchors=num_anchors,
+                                     n_filters=config['fpn_num_filters'],
+                                     act_type=config['activation_type'],
+                                     repeats=config['box_class_repeats'],
+                                     survival_prob=config['survival_prob'])
     return class_outputs, box_outputs
 
 

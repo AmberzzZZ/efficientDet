@@ -1,14 +1,27 @@
 ### efficientNet
     tf官方仓库：https://github.com/tensorflow/tpu/tree/master/models/official/efficientnet
     keras实现：https://github.com/keras-team/keras-applications/blob/master/keras_applications/efficientnet.py
+
     activation: 基本上conv-bn-activation组合中的激活函数都是swish，除了SE-block和最后概率输出的'sigmoid'和'softmax'
+
     initializer: efficientNet自定义了CONV_KERNEL_INITIALIZER和DENSE_KERNEL_INITIALIZER，抄过来了
+
     residual: inverse_DW_block的PW输出是没有激活函数的，每个efficientBlock最后add了id path以后，也不添加activation
+
     se_ratio: se-block里面的reduced dim是filters_in*se_ratio，而不是expand_dim*se_ratio
+
     b0: Total params: 5,250,196
     b1-b7: depth & width & resolution 同比增加
 
-    
+    dropout & drop connect:
+    dropout_rate: float, dropout rate before final classifier layer.
+    dropout参数noise_shape: 第一次使用到这个参数，noise_shape的和输入tensor_shape的dim一致或者为1，
+    例如本例可以是(None,h,w,c)、(None,h,w,1)等，哪个轴为1，哪个轴就会被一致地dropout
+    drop_connect_rate: float, dropout rate at skip connections, fraction of the input units to drop
+    源代码的dropconnect: 用在skip connection的地方，x+id，我们随机抛弃掉部分残差特征，然后add，跟原始定义有点区别
+    原始的dropout: 用在全连接层，将节点输出以1-p的概率变成0
+    原始的dropconnect: 用在全连接层，将节点中的每个与其相连的输入权值以1-p的概率变成0
+
 
 ### efficientDet
     tf官方仓库: https://github.com/google/automl/tree/master/efficientdet
