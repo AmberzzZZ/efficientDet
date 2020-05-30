@@ -1,19 +1,26 @@
 from config import default_detection_configs
 from backbone import EfficientNet, Conv_BN
+from loss import *
 from keras.layers import Input, Conv2D, MaxPooling2D, Lambda, Softmax, ReLU, add, SeparableConv2D, BatchNormalization, Activation
 from keras.models import Model
+from keras.optimizers import adam
 import tensorflow as tf
 import keras.backend as K
 import numpy as np
 
 
-def EfficientDet(input_tensor=None, input_shape=(512,512,3)):
+def EfficientDet(input_tensor=None, input_shape=(512,512,3), lr=3e-4, decay=5e-6):
     if input_tensor is not None:
         inpt = input_tensor
     else:
         inpt = Input(input_shape)
 
     config = default_detection_configs()
+    n_anchors = len(config['aspect_ratios'])*config['num_scales']
+    n_classes = config['num_classes']
+    h ,w = inpt._keras_shape[1:3]
+    y_true = [Input(shape=(h//2**l, w//2**l, n_anchors*n_classes)) for l in range(config['min_level'], config['max_level']+1)]
+    y_true += [Input(shape=(h//2**l, w//2**l, n_anchors*4)) for l in range(config['min_level'], config['max_level']+1)]
 
     # backbone
     x = build_backbone(inpt, config)       # [0:1xC0, 5: 32xC5]
@@ -22,10 +29,16 @@ def EfficientDet(input_tensor=None, input_shape=(512,512,3)):
     x = build_feature_network(x, config)        # [P3", P7"]
 
     # heads
-    class_outputs, box_outputs = build_class_and_box_outputs(x, config)    # [3: 8xhead3, 5:128xhead5]
+    class_outputs, box_outputs = build_class_and_box_outputs(x, config)       # [8xhead3, 128xhead7]
 
     # model
-    model = Model(inpt, list(class_outputs.values())+list(box_outputs.values()))
+    ouputs = class_outputs + box_outputs
+    model_loss = Lambda(det_loss, output_shape=(1,), name='det_loss', arguments={'config': config})([*ouputs, *y_true])
+    model = Model([inpt, *y_true], model_loss)
+
+    model.compile(adam(lr, decay),
+                  loss={'det_loss': lambda y_true, y_pred: y_pred},
+                  metrics=None)
 
     return model
 
@@ -55,22 +68,22 @@ def build_feature_network(x, config):
 
 def build_class_and_box_outputs(x, config):
     num_anchors = len(config['aspect_ratios']) * config['num_scales']
-    class_outputs = {}
-    box_outputs = {}
+    class_outputs = []
+    box_outputs = []
     for level in range(config['min_level'], config['max_level']+1):
-        class_outputs[level] = class_net(x[level-config['min_level']],
-                                         n_classes=config['num_classes'],
-                                         n_anchors=num_anchors,
-                                         n_filters=config['fpn_num_filters'],
-                                         act_type=config['activation_type'],
-                                         repeats=config['box_class_repeats'],
-                                         survival_prob=config['survival_prob'])
-        box_outputs[level] = box_net(x[level-config['min_level']],
-                                     n_anchors=num_anchors,
-                                     n_filters=config['fpn_num_filters'],
-                                     act_type=config['activation_type'],
-                                     repeats=config['box_class_repeats'],
-                                     survival_prob=config['survival_prob'])
+        class_outputs.append(class_net(x[level-config['min_level']],
+                                       n_classes=config['num_classes'],
+                                       n_anchors=num_anchors,
+                                       n_filters=config['fpn_num_filters'],
+                                       act_type=config['activation_type'],
+                                       repeats=config['box_class_repeats'],
+                                       survival_prob=config['survival_prob']))
+        box_outputs.append(box_net(x[level-config['min_level']],
+                                   n_anchors=num_anchors,
+                                   n_filters=config['fpn_num_filters'],
+                                   act_type=config['activation_type'],
+                                   repeats=config['box_class_repeats'],
+                                   survival_prob=config['survival_prob']))
     return class_outputs, box_outputs
 
 
@@ -173,7 +186,6 @@ def build_bifpn(feats, config):
         feats.append(new_node)
 
     fpn_feats = feats[-5:]
-    fpn_feats.reverse()
 
     return fpn_feats         # [P3", P7"]
 

@@ -33,7 +33,7 @@ def default_detection_configs():
     # localization loss
     config['delta'] = 0.1
     config['box_loss_weight'] = 50.0
-    config['iou_loss_type'] = None
+    config['iou_loss_type'] = None         # {'iou', 'ciou', 'diou', 'giou'}
     config['iou_loss_weight'] = 1.0
     # regularization l2 loss.
     config['weight_decay'] = 4e-5

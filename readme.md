@@ -41,10 +41,23 @@
     fuse_features: fusion来自不同节点的feature的时候，如果求加权和会定义一个list of tensor，里面的tensor都是标量，
     keras的层运算默认第一维是batch dim，只能在2d及以上的tensor上运行，但是tfbackend的softmax、sum等操作可以作用于标量
     stack&unstack: 常量数组和一维向量之间的转换
+    tf.add_n([p1, p2, p3....]): 可以实现一个列表的元素的相加
 
-    cls&box head: 不同尺度的特征图复用，几个conv-bn-swish+id的block，然后加conv head
+    cls&box head: 不同尺度的特征图复用，几个conv-bn-swish+id的block，然后加conv head，
+    源代码裸的输出（没加损失函数，没做概率／loc的归一化）
 
     Lambda wrapper: keras骚操作
+
+    cls loss: focal loss = (1-p_t)^r * log(pt)
+    cls activation是sigmoid, 正样本pt_1=sigmoid(x), 负样本pt_0=1-sigmoid(x)
+    unstable issue: r<1时bp会unstable，loss前半段(1-p_t)^r，用x替换log(e^x)
+    loss后半段log(pt)，就是sigmoid cross entropy
+
+    box reg loss: huber loss
+    误差较小时，接近MSE，梯度会随着损失值接近其最小值逐渐减少
+    误差较大时，接近MAE，对异常值更敏感，梯度大
+    coord order: [y_min, x_min, y_max, x_max]*, 而不是yolo的[x,y,w,h]
+
 
 
 
