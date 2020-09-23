@@ -44,7 +44,7 @@
     tf.add_n([p1, p2, p3....]): 可以实现一个列表的元素的相加
 
     cls&box head: 不同尺度的特征图复用，几个conv-bn-swish+id的block，然后加conv head，
-    源代码裸的输出（没加损失函数，没做概率／loc的归一化）
+    源代码裸的输出（没加损失函数，没做概率／loc的归一化），在loss里面有处理
 
     Lambda wrapper: keras骚操作
 
@@ -52,11 +52,17 @@
     cls activation是sigmoid, 正样本pt_1=sigmoid(x), 负样本pt_0=1-sigmoid(x)
     unstable issue: r<1时bp会unstable，loss前半段(1-p_t)^r，用x替换log(e^x)
     loss后半段log(pt)，就是sigmoid cross entropy
+    normalize item: RetinaNet里面提到的，focal loss是sum over all ～100k anchors and normalized by the number of anchors assigned to a ground-truth box
 
     box reg loss: huber loss
     误差较小时，接近MSE，梯度会随着损失值接近其最小值逐渐减少
     误差较大时，接近MAE，对异常值更敏感，梯度大
     coord order: [y_min, x_min, y_max, x_max]*, 而不是yolo的[x,y,w,h]
+    valid_mask: 跟yolo一样y_true里面有box的vector写box coord，没有box的vector全0
+
+    前背景：retinanet里面定义了anchor state {-1:ignore, 0:negative, 1:positive}，iou在[0.4,0.5]区间内的anchor计算cls loss时忽略，
+    efficientDet里面只分前背景，clsloss全部背景类都参与运算
+
 
 
 
