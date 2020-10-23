@@ -7,23 +7,21 @@ def default_detection_configs():
     config['image_size'] = 512
     config['num_classes'] = 20
 
-    # model architecture
+    # fpn
     config['min_level'] = 3
     config['max_level'] = 7
+    config['fpn_num_filters'] = 64
+    config['fpn_cell_repeats'] = 3
+
+    # anchor
     config['num_scales'] = 3
     config['aspect_ratios'] = [(1.0, 1.0), (1.4, 0.7), (0.7, 1.4)]
     config['anchor_scale'] = 4.0
 
+    # head
+    config['conv_filters'] = config['fpn_num_filters']
     config['box_class_repeats'] = 3
-    config['fpn_cell_repeats'] = 3
-    config['fpn_num_filters'] = 64
     config['separable_conv'] = True
-    config['apply_bn_for_resampling'] = True
-    config['conv_after_downsample'] = False
-    config['conv_bn_act_pattern'] = False
-    config['use_native_resize_op'] = False
-    config['pooling_type'] = None
-
     config['activation_type'] = swish
     config['survival_prob'] = None
 
