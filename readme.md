@@ -62,7 +62,7 @@
     valid_mask: 跟yolo一样y_true里面有box的vector写box coord，没有box的vector全0
 
     前背景：retinanet里面定义了anchor state {-1:ignore, 0:negative, 1:positive}，iou在[0.4,0.5]区间内的anchor计算cls loss时忽略，
-    efficientDet里面只分前背景，clsloss全部背景类都参与运算
+    efficientDet里面只分前背景，clsloss格子都参与运算
 
 
 ### box version & kp version & polygon version & (mask version)

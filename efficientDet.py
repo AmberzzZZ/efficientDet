@@ -19,8 +19,7 @@ def EfficientDet(input_tensor=None, input_shape=(512,512,3), lr=3e-4, decay=5e-6
     n_anchors = len(config['aspect_ratios'])*config['num_scales']
     n_classes = config['num_classes']
     h ,w = inpt._keras_shape[1:3]
-    y_true = [Input(shape=(h//2**l, w//2**l, n_anchors*n_classes)) for l in range(config['min_level'], config['max_level']+1)]
-    y_true += [Input(shape=(h//2**l, w//2**l, n_anchors*4)) for l in range(config['min_level'], config['max_level']+1)]
+    y_true = [Input(shape=(h//2**l, w//2**l, n_anchors*(4+n_classes))) for l in range(config['min_level'], config['max_level']+1)]
 
     # backbone
     x = build_backbone(inpt, config)       # [0:1xC0, 5: 32xC5]
@@ -29,11 +28,10 @@ def EfficientDet(input_tensor=None, input_shape=(512,512,3), lr=3e-4, decay=5e-6
     x = build_feature_network(x, config)        # [P3", P7"]
 
     # heads
-    class_outputs, box_outputs = build_class_and_box_outputs(x, config)       # [8xhead3, 128xhead7]
+    cls_outputs, box_outputs = build_class_and_box_outputs(x, config)       # [8xhead3, 128xhead7]
 
     # model
-    ouputs = class_outputs + box_outputs
-    model_loss = Lambda(det_loss, output_shape=(1,), name='det_loss', arguments={'config': config})([*ouputs, *y_true])
+    model_loss = Lambda(det_loss, name='det_loss', arguments={'config': config})([*cls_outputs, *box_outputs, *y_true])
     model = Model([inpt, *y_true], model_loss)
 
     model.compile(adam(lr, decay),
@@ -224,7 +222,6 @@ if __name__ == '__main__':
 
     model = EfficientDet(input_tensor=None)
     model.summary()
-
 
 
 
