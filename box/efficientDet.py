@@ -1,7 +1,8 @@
 from config import default_detection_configs
 from backbone import EfficientNet, Conv_BN
 from loss import *
-from keras.layers import Input, Conv2D, MaxPooling2D, Lambda, Softmax, ReLU, add, SeparableConv2D, BatchNormalization, Activation
+from keras.layers import Input, Conv2D, MaxPooling2D, Lambda, Softmax, ReLU, add, SeparableConv2D, \
+                         BatchNormalization, Activation, Reshape
 from keras.models import Model
 from keras.optimizers import adam
 import tensorflow as tf
@@ -12,17 +13,18 @@ import numpy as np
 def EfficientDet(input_tensor=None, input_shape=(512,512,3), lr=3e-4, decay=5e-6):
     if input_tensor is not None:
         inpt = input_tensor
+        input_shape = K.int_shape(inpt)
     else:
         inpt = Input(input_shape)
 
     config = default_detection_configs()
-    n_anchors = len(config['aspect_ratios'])*config['num_scales']
+    n_anchors = len(config['aspect_ratios'])*len(config['anchor_scale'])
     n_classes = config['num_classes']
     h ,w = inpt._keras_shape[1:3]
-    y_true = [Input(shape=(h//2**l, w//2**l, n_anchors*(4+n_classes))) for l in range(config['min_level'], config['max_level']+1)]
+    y_true = [Input(shape=(h//2**l, w//2**l, n_anchors, 4+n_classes+1)) for l in range(config['min_level'], config['max_level']+1)]
 
     # backbone
-    x = build_backbone(inpt, config)       # [0:1xC0, 5: 32xC5]
+    x = build_backbone(inpt, config, input_shape)       # [0:1xC0, 5: 32xC5]
 
     # feature network
     x = build_feature_network(x, config)        # [P3", P7"]
@@ -31,20 +33,23 @@ def EfficientDet(input_tensor=None, input_shape=(512,512,3), lr=3e-4, decay=5e-6
     cls_outputs, box_outputs = build_class_and_box_outputs(x, config)       # [8xhead3, 128xhead7]
 
     # model
-    model_loss = Lambda(det_loss, name='det_loss', arguments={'config': config})([*cls_outputs, *box_outputs, *y_true])
+    anchors = config['anchors']
+    strides = [2**i for i in range(config['min_level'], config['max_level']+1)]
+    model_loss = Lambda(det_loss, arguments={'n_classes': n_classes, 'anchors': anchors, 'strides': strides, 'input_shape': input_shape[:2]})  \
+                        ([*cls_outputs,*box_outputs,*y_true])
     model = Model([inpt, *y_true], model_loss)
 
     model.compile(adam(lr, decay),
-                  loss={'det_loss': lambda y_true, y_pred: y_pred},
+                  loss=lambda y_true, y_pred: y_pred,
                   metrics=None)
 
     return model
 
 
-def build_backbone(x, config):
-    _, features = EfficientNet(x)
-    # level3-level7 features (8x-128x)
-    return {0: x, 1:features[0], 2:features[1], 3:features[2], 4:features[4], 5:features[6]}
+def build_backbone(x, config, input_shape):
+    features = EfficientNet(input_shape, config['width_coefficient'], config['depth_coefficient'], config['dropout_rate'])(x)
+    # level2-level5 features (4x-32x)
+    return {2: features[0], 3:features[1], 4:features[2], 5:features[3]}
 
 
 def build_feature_network(x, config):
@@ -65,31 +70,42 @@ def build_feature_network(x, config):
 
 
 def build_class_and_box_outputs(x, config):
-    num_anchors = len(config['aspect_ratios']) * config['num_scales']
-    class_outputs = []
+    num_anchors = len(config['aspect_ratios']) * len(config['anchor_scale'])
+    shared_cls_net_submodel = cls_net(n_classes=config['num_classes'],
+                                      n_anchors=num_anchors,
+                                      n_filters=config['fpn_num_filters'],
+                                      act_type=config['activation_type'],
+                                      repeats=config['box_class_repeats'],
+                                      survival_prob=config['survival_prob'])
+    shared_box_net_submodel = box_net(n_anchors=num_anchors,
+                                      n_filters=config['fpn_num_filters'],
+                                      act_type=config['activation_type'],
+                                      repeats=config['box_class_repeats'],
+                                      survival_prob=config['survival_prob'])
+    cls_outputs = []
     box_outputs = []
     for level in range(config['min_level'], config['max_level']+1):
-        class_outputs.append(class_net(x[level-config['min_level']],
-                                       n_classes=config['num_classes'],
-                                       n_anchors=num_anchors,
-                                       n_filters=config['fpn_num_filters'],
-                                       act_type=config['activation_type'],
-                                       repeats=config['box_class_repeats'],
-                                       survival_prob=config['survival_prob']))
-        box_outputs.append(box_net(x[level-config['min_level']],
-                                   n_anchors=num_anchors,
-                                   n_filters=config['fpn_num_filters'],
-                                   act_type=config['activation_type'],
-                                   repeats=config['box_class_repeats'],
-                                   survival_prob=config['survival_prob']))
-    return class_outputs, box_outputs
+        x0 = x[level-config['min_level']]
+
+        x1 = shared_cls_net_submodel(x0)
+        h, w = K.int_shape(x1)[1:3]
+        x1 = Reshape([h,w,num_anchors,config['num_classes']])(x1)
+        cls_outputs.append(x1)
+
+        x2 = shared_box_net_submodel(x0)
+        h, w = K.int_shape(x2)[1:3]
+        x2 = Reshape([h,w,num_anchors,4])(x2)
+        box_outputs.append(x2)
+
+    return cls_outputs, box_outputs
 
 
-def class_net(x, n_classes, n_anchors, n_filters, act_type,
-              repeats=4, separable_conv=True, survival_prob=None):
+def cls_net(n_classes, n_anchors, n_filters, act_type, repeats=4, separable_conv=True, survival_prob=None):
+    inpt = Input((None, None, n_filters))
+    x = inpt
     # conv-bn-swish + id
     for i in range(repeats):
-        inpt = x
+        inpt1 = x
         if separable_conv:
             x = SeparableConv2D(n_filters, kernel_size=3, strides=1, padding='same',
                                 depthwise_initializer=tf.initializers.variance_scaling(),
@@ -103,20 +119,23 @@ def class_net(x, n_classes, n_anchors, n_filters, act_type,
         x = Activation(act_type)(x)
         if i>0 and survival_prob:
             x = Lambda(drop_connect, arguments={'survival_prob': survival_prob, 'is_training': True})(x)
-        x = add([x, inpt])
+        x = add([x, inpt1])
 
     # head
     x = Conv2D(n_classes*n_anchors, kernel_size=3, strides=1, padding='same',
                bias_initializer=tf.constant_initializer(-np.log((1 - 0.01) / 0.01)))(x)
 
-    return x
+    model = Model(inpt, x)
+
+    return model
 
 
-def box_net(x, n_anchors, n_filters, act_type,
-            repeats=4, separable_conv=True, survival_prob=None):
+def box_net(n_anchors, n_filters, act_type, repeats=4, separable_conv=True, survival_prob=None):
+    inpt = Input((None, None, n_filters))
+    x = inpt
     # conv-bn-swish + id
     for i in range(repeats):
-        inpt = x
+        inpt1 = x
         if separable_conv:
             x = SeparableConv2D(n_filters, kernel_size=3, strides=1, padding='same',
                                 depthwise_initializer=tf.initializers.variance_scaling(),
@@ -130,13 +149,15 @@ def box_net(x, n_anchors, n_filters, act_type,
         x = Activation(act_type)(x)
         if i>0 and survival_prob:
             x = Lambda(drop_connect, arguments={'survival_prob': survival_prob, 'is_training': True})(x)
-        x = add([x, inpt])
+        x = add([x, inpt1])
 
     # head
     x = Conv2D(4*n_anchors, kernel_size=3, strides=1, padding='same',
                bias_initializer=tf.zeros_initializer())(x)
 
-    return x
+    model = Model(inpt, x)
+
+    return model
 
 
 def drop_connect(x, survival_prob, is_training=False):

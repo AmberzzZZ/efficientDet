@@ -71,14 +71,14 @@ def EfficientNet(input_shape, width_coefficient, depth_coefficient, dropout_rate
         block_arg['repeats'] = round_repeats(block_arg['repeats'], depth_coefficient)
         block_arg['filters_in'] = round_filters(block_arg['filters_in'], width_coefficient)
         block_arg['filters_out'] = round_filters(block_arg['filters_out'], width_coefficient)
-        save_feature = block_arg['strides']>1
+        s = block_arg['strides']
         for i in range(block_arg['repeats']):
             if i > 0:
                 block_arg['filters_in'] = block_arg['filters_out']
                 block_arg['strides'] = 1
             x = efficientBlock(x, drop_connect_rate*b/blocks, **block_arg)
             b += 1
-        if save_feature:
+        if s>1:
             features.append(x)
 
     model = Model(inpt, features)

@@ -1,4 +1,5 @@
 from backbone import swish
+import numpy as np
 
 
 def default_detection_configs():
@@ -6,6 +7,9 @@ def default_detection_configs():
 
     config['image_size'] = 512
     config['num_classes'] = 20
+    config['width_coefficient'] = 1.8
+    config['depth_coefficient'] = 2.2
+    config['dropout_rate'] = 0.4
 
     # fpn
     config['min_level'] = 3
@@ -14,9 +18,11 @@ def default_detection_configs():
     config['fpn_cell_repeats'] = 3
 
     # anchor
-    config['num_scales'] = 3
-    config['aspect_ratios'] = [(1.0, 1.0), (1.4, 0.7), (0.7, 1.4)]
-    config['anchor_scale'] = 4.0
+    config['aspect_ratios'] = [1.0, 0.5, 2.0]
+    config['anchor_scale'] = [2**0, 2**(1/3.), 2**(2/3.)]
+    config['size'] = {8:32, 16:64, 32:128, 64:256, 128:512}
+    config['anchors'] = get_anchors(config['aspect_ratios'], config['anchor_scale'], config['size'],
+                            strides=[2**i for i in range(config['min_level'], config['max_level']+1)])
 
     # head
     config['conv_filters'] = config['fpn_num_filters']
@@ -55,5 +61,15 @@ def default_detection_configs():
     return config
 
 
+def get_anchors(anchor_ratios, anchor_scales, anchor_sizes, strides):
+    anchors = []
+    for s in strides:
+        base_size = anchor_sizes[s]
+        anchors_s = base_size * np.tile(np.expand_dims(anchor_scales,axis=-1), (len(anchor_ratios),2)).astype(np.float32)
+        anchors_s[:,0] = anchors_s[:,0] / np.sqrt(np.repeat(anchor_ratios, len(anchor_scales)))
+        anchors_s[:,1] = anchors_s[:,0] * np.repeat(anchor_ratios, len(anchor_scales))
+        anchors.append(anchors_s)
+
+    return anchors
 
 

@@ -205,9 +205,12 @@ def EfficientNetB7():
 
 if __name__ == '__main__':
 
-    model = EfficientNetB4()
+    # model = EfficientNetB4()
     # model.load_weights("/Users/amber/Downloads/Misc/efficientnet-b4_weights_tf_dim_ordering_tf_kernels.h5")
 
+    model = EfficientNet(512, 1.8, 2.6, 0.5)
+    model.load_weights("/Users/amber/Downloads/efficientnet-b6_noisy-student_notop.h5")
+    model.summary()
 
 
 
