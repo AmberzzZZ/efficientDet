@@ -67,7 +67,7 @@
 
 ### box version & kp version & polygon version & (mask version)
     对于一阶段检测框架，可变的模块如下：
-    1. back & fpn：看个人喜好就好
+    1. back & fpn：看个人喜好
     2. shared／individual head：有些框架头上的repeats conv是share的，有些是独立的
     3. last layer：输出conv层，由具体任务决定，
         feature scale
@@ -89,7 +89,9 @@
         （但是对于关键点，落进／没落进格子没那么ambiguous，可以全图算，应该不需要ignore）
 
 
-
+### pkg version
+    keras2.2.4 & tf1.10
+    keras2.3.1 & tf2.2
 
 
 

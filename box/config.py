@@ -6,7 +6,7 @@ def default_detection_configs():
     config = {}
 
     config['image_size'] = 512
-    config['num_classes'] = 20
+    config['num_classes'] = 2
     config['width_coefficient'] = 1.8
     config['depth_coefficient'] = 2.2
     config['dropout_rate'] = 0.4

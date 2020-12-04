@@ -24,7 +24,7 @@ def det_loss(args, n_classes, anchors, strides, input_shape):
 
         loss += cls_loss + box_loss
 
-        loss = tf.Print(loss, [cls_loss, box_loss], message="  focal loss & smooth l1 loss: ")
+        # loss = tf.Print(loss, [cls_loss, box_loss], message="  focal loss & smooth l1 loss: ")
 
     return loss
 
