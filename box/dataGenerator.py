@@ -136,6 +136,27 @@ def get_box(yolo_file):
     return np.array(boxes)
 
 
+def random_hsv_transform(img, hue_vari=10, sat_vari=0.1, val_vari=0.1):
+    hue_delta = np.random.randint(-hue_vari, hue_vari)
+    sat_mult = 1 + np.random.uniform(-sat_vari, sat_vari)
+    val_mult = 1 + np.random.uniform(-val_vari, val_vari)
+    img_hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV).astype(np.float)
+    img_hsv[:, :, 0] = (img_hsv[:, :, 0] + hue_delta) % 180
+    img_hsv[:, :, 1] *= sat_mult
+    img_hsv[:, :, 2] *= val_mult
+    img_hsv[img_hsv > 255] = 255
+    return cv2.cvtColor(np.round(img_hsv).astype(np.uint8), cv2.COLOR_HSV2BGR)
+
+
+def random_gamma_transform(img, gamma_vari=2.0):
+    log_gamma_vari = np.log(gamma_vari)
+    alpha = np.random.uniform(-log_gamma_vari, log_gamma_vari)
+    gamma = np.exp(alpha)
+    gamma_table = [np.power(x / 255.0, gamma) * 255.0 for x in range(256)]
+    gamma_table = np.round(np.array(gamma_table)).astype(np.uint8)
+    return cv2.LUT(img, gamma_table)
+
+
 def aug(img, boxes, input_shape):
     labels = boxes[:,4:5]
     boxes = boxes[:,:4]
@@ -147,6 +168,12 @@ def aug(img, boxes, input_shape):
     boxes_xcyc = boxes[:,:2]*[fx,fy]
     boxes_wh = boxes[:,2:]*[fx,fy]
     boxes = np.concatenate([boxes_xcyc, boxes_wh], axis=-1)
+
+    # img aug: hue & saturation & value & gamma
+    # hue_vari: 色调变化比例
+    # sat_vari: 饱和度变化比例
+    # val_vari: 明度变化比例
+
 
     # # scale & shift & rotate
     # if random.uniform(0, 1)>0.5:
