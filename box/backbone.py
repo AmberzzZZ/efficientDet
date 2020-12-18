@@ -82,6 +82,7 @@ def EfficientNet(input_shape, width_coefficient, depth_coefficient, dropout_rate
             features.append(x)
 
     model = Model(inpt, features)
+    model.load_weights("/Users/amber/workspace/backbones/googleNet/weights/eff_b4_notop.h5", by_name=True)
 
     return model
 
@@ -202,7 +203,8 @@ def EfficientNetB7():
 
 if __name__ == '__main__':
 
-    model = EfficientNet(256, 1.1, 1.2, 0.3)
+    model = EfficientNet(512, 1.4, 1.8, 0.4)
+    model.summary()
     print(model.outputs)
     # features: [x4, x8, x16, x32]
 

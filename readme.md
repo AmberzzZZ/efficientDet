@@ -76,6 +76,8 @@
         box／kp／polygon: poly-yolo
     4. loss：跟last layer和任务关联
 
+    5. test_classification & test_detection: 两种头，一种出全图分类结果，一种出常规检测结果
+
 
 ### kp version
     基于回归的关键点定位，是检测框的简化版本，
@@ -107,7 +109,7 @@
         |     B7    |     600    |    2.0   |    3.1   |      0.5     |
         
         ## efficientDet D0-D6
-        |  back     | input_size | bifpn_ch  | bifpn_rp | head_rp |
+        |    back   | input_size | bifpn_ch  | bifpn_rp | head_rp |
         |     B0    |     512    |     64    |     3    |    3    |
         |     B1    |     640    |     88    |     4    |    3    | 
         |     B2    |     768    |    112    |     5    |    3    | 

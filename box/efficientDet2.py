@@ -9,6 +9,7 @@ import tensorflow as tf
 import keras.backend as K
 import numpy as np
 from keras.initializers import VarianceScaling, Zeros, RandomNormal, Constant
+from dataGenerator import get_anchors_yolo
 
 
 def EfficientDet(input_tensor=None, input_shape=(512,512,3), lr=3e-4, decay=5e-6):
@@ -19,13 +20,17 @@ def EfficientDet(input_tensor=None, input_shape=(512,512,3), lr=3e-4, decay=5e-6
         inpt = Input(input_shape)
 
     config = default_detection_configs()
-    n_anchors = len(config['aspect_ratios'])*len(config['anchor_scale'])
+    config['input_shape'] = input_shape
+    n_anchors = config['n_anchors']
+    anchors = config['anchors'][:len(config['strides'])]
+    # anchors = get_anchors_yolo(config['anchors'], n_anchors)
+    # config['anchors'] = anchors
     n_classes = config['num_classes']
     h ,w = inpt._keras_shape[1:3]
-    y_true = [Input(shape=(h//2**l, w//2**l, n_anchors, 4+n_classes+1)) for l in range(config['min_level'], config['max_level']+1)]
+    y_true = [Input(shape=(h//2**l, w//2**l, n_anchors, 4+n_classes+1)) for l in range(config['min_level'], config['min_level']+len(config['strides']))]
 
     # backbone
-    x = build_backbone(inpt, config, input_shape)       # [0:1xC0, 5: 32xC5]
+    x = build_backbone(inpt, config)       # [0:1xC0, 5: 32xC5]
 
     # feature network
     x = build_feature_network(x, config)        # [P3", P7"]
@@ -34,9 +39,7 @@ def EfficientDet(input_tensor=None, input_shape=(512,512,3), lr=3e-4, decay=5e-6
     cls_outputs, box_outputs = build_class_and_box_outputs(x, config)       # [8xhead3, 128xhead7]
 
     # model
-    anchors = config['anchors']
-    strides = [2**i for i in range(config['min_level'], config['max_level']+1)]
-    model_loss = Lambda(det_loss, arguments={'n_classes': n_classes, 'anchors': anchors, 'strides': strides, 'input_shape': input_shape[:2]})  \
+    model_loss = Lambda(det_loss, arguments={'n_classes': n_classes, 'anchors': anchors, 'strides': config['strides'], 'input_shape': input_shape[:2]})  \
                         ([*cls_outputs,*box_outputs,*y_true])
     model = Model([inpt, *y_true], model_loss)
 
@@ -47,8 +50,8 @@ def EfficientDet(input_tensor=None, input_shape=(512,512,3), lr=3e-4, decay=5e-6
     return model
 
 
-def build_backbone(x, config, input_shape):
-    features = EfficientNet(input_shape, config['width_coefficient'], config['depth_coefficient'], config['dropout_rate'])(x)
+def build_backbone(x, config):
+    features = EfficientNet(config['input_shape'], config['width_coefficient'], config['depth_coefficient'], config['dropout_rate'])(x)
     # level2-level5 features (4x-32x)
     return {2: features[0], 3:features[1], 4:features[2], 5:features[3]}
 
@@ -71,31 +74,32 @@ def build_feature_network(x, config):
 
 
 def build_class_and_box_outputs(x, config):
-    num_anchors = len(config['aspect_ratios']) * len(config['anchor_scale'])
+    # num_anchors = len(config['aspect_ratios']) * len(config['anchor_scale'])
     shared_cls_net_submodel = cls_net(n_classes=config['num_classes'],
-                                      n_anchors=num_anchors,
+                                      n_anchors=config['n_anchors'],
                                       n_filters=config['fpn_num_filters'],
                                       act_type=config['activation_type'],
                                       repeats=config['box_class_repeats'],
                                       survival_prob=config['survival_prob'])
-    shared_box_net_submodel = box_net(n_anchors=num_anchors,
+    shared_box_net_submodel = box_net(n_anchors=config['n_anchors'],
                                       n_filters=config['fpn_num_filters'],
                                       act_type=config['activation_type'],
                                       repeats=config['box_class_repeats'],
                                       survival_prob=config['survival_prob'])
     cls_outputs = []
     box_outputs = []
-    for level in range(config['min_level'], config['max_level']+1):
+    n_anchors = config['n_anchors']
+    for level in range(config['min_level'], config['min_level']+len(config['strides'])):
         x0 = x[level-config['min_level']]
 
         x1 = shared_cls_net_submodel(x0)
         h, w = K.int_shape(x1)[1:3]
-        x1 = Reshape([h,w,num_anchors,config['num_classes']])(x1)
+        x1 = Reshape([h,w,n_anchors,config['num_classes']])(x1)
         cls_outputs.append(x1)
 
         x2 = shared_box_net_submodel(x0)
         h, w = K.int_shape(x2)[1:3]
-        x2 = Reshape([h,w,num_anchors,4])(x2)
+        x2 = Reshape([h,w,n_anchors,4])(x2)
         box_outputs.append(x2)
 
     return cls_outputs, box_outputs

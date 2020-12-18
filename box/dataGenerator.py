@@ -125,6 +125,17 @@ def get_anchors(anchors, strides):
     return anchors
 
 
+def get_anchors_yolo(anchors_path, n_anchors=3):
+    with open(anchors_path) as f:
+        anchors = f.readline()
+    anchors = [float(x) for x in anchors.split(',')]
+    anchors = np.array(anchors, dtype=np.float32).reshape(-1,2)
+    anchors_per_level = []
+    for i in range(0, anchors.shape[0], n_anchors):
+        anchors_per_level.append(anchors[i:i+n_anchors])
+    return anchors_per_level
+
+
 def get_box(yolo_file):
     f = open(yolo_file, 'r')
     boxes = []
